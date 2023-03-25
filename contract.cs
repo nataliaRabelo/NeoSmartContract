@@ -11,12 +11,65 @@ using System.Numerics;
 namespace PeerReviewContract
 {
     /**
-    Classe que representa um contrato de revisão de pares
+    Classe que representa um contrato de revisão de pares.
     **/
     public class PeerReview : SmartContract
     {
+        
         /**
-        TODO: Refatorar para pegar criptografado do sistema
+        Acessa a storage do contrato e buscar o autor associado ao texto. 
+        Esse autor foi armazenado como chave na storage do contrato, e o valor associado a essa chave é o texto submetido pelo autor.
+        **/
+        private static byte[] GetAuthor(byte[] text)
+        {
+            return Storage.Get(Storage.CurrentContext, text);
+        }
+
+        /**
+        Recebe o parâmetro author, que representa o autor do texto original, e usa esse valor para obter o texto correspondente a partir do armazenamento. 
+        Em seguida, ele chama a função Anonymize() para obter o texto anônimo correspondente, que é então retornado.
+        **/
+        private static byte[] GetAnonText(byte[] author) {
+        byte[] text = Storage.Get(Storage.CurrentContext, author);
+        if (text == null) return null;
+        return Anonymize(text);
+        }
+
+        /**
+        Retorna a revisão final de um texto.
+        **/
+        private static byte[] GetFinalReview(byte[] reviews)
+        {
+            if (reviews == null) return null;
+            BigInteger numReviews = reviews.Length / 33;
+            BigInteger numApprovals = 0;
+
+        // Verifica se há maioria de aprovação entre os revisores.
+        for (int i = 0; i < numReviews; i++)
+        {
+            byte[] reviewer = new byte[33];
+            Array.Copy(reviews, i * 33, reviewer, 0, 33);
+
+            byte[] review = new byte[1];
+            Array.Copy(reviews, 33 * numReviews + i, review, 0, 1);
+
+            if (review[0] == 1) numApprovals++;
+        }
+
+        if (numApprovals >= numReviews / 2 + 1)
+        {
+            // Retorna a revisão final.
+            return new byte[] { 1 };
+        }
+        else
+        {
+            // Retorna nulo caso a revisão final não tenha sido aprovada.
+            return null;
+        }
+        }
+
+        /**
+        Retorna o editor armazenado anteriormente na chave "editor" no Storage.
         **/
         private static byte[] GetEditor()
         {
@@ -76,9 +129,7 @@ namespace PeerReviewContract
             updatedReviews[updatedReviews.Length - 1] = newReview;
             return updatedReviews.Serialize();
         }
-        /**
-        TODO: Refatorar para deixar anônimo só as coisas que importam, como o nome dos autores de forma criptografada.
-        **/
+
         public static object Main(string operation, object[] args)
         {
             if (operation == "submitText")
@@ -114,7 +165,7 @@ namespace PeerReviewContract
                 if (args.Length != 2) return false;
                 byte[] reviewer = (byte[])args[0];
                 byte[] review = (byte[])args[1];
-                byte[] anonText = GetAnonText();
+                byte[] anonText = GetAnonText(reviewer);
                 if (anonText == null) return false;
                 byte[] reviews = Storage.Get(Storage.CurrentContext, anonText);
                 if (reviews == null) return false;
@@ -152,6 +203,6 @@ namespace PeerReviewContract
             return false;
         }
 
-
     }
+    
 }
