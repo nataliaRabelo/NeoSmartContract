@@ -10,25 +10,24 @@ namespace PeerReview
     public class Contract1 : SmartContract
     {
         //Constantes 
-        static readonly ByteString Reviewer1 = "Reviewer1";
-        static readonly ByteString Reviewer2 = "Reviewer2";
-        static readonly ByteString Reviewer3 = "Reviewer3";
-        static readonly ByteString Y = "Y";
-        static readonly ByteString N = "N";
-        static readonly ByteString R = "R";
+        static readonly ByteString Reviewer1 = "01000001";
+        static readonly ByteString Reviewer2 = "01000010";
+        static readonly ByteString Reviewer3 = "01000011";
+        static readonly ByteString Y = "01011001";
+        static readonly ByteString N = "01001110";
+        static readonly ByteString R = "01010010";
 
         /// <summary>
         /// Submete um artigo para revisão, verificando o estado das revisões anteriores, se houver.
         /// </summary>
         /// <param name="article">O artigo a ser submetido.</param>
         /// <param name="author">O autor do artigo.</param>
-        /// <param name="editor">O editor responsável pelo intermédio da revisão.</param>
         /// <returns>Retorna 'true' se o artigo for submetido com sucesso. 'false' se o autor não for verificado, o artigo já tiver sido reprovado, ou não for aprovado com ressalvas.</returns>
-        public static bool SubmitArticle(ByteString article, UInt160 author, UInt160 editor)
+        public static bool SubmitArticle(UInt160 article, UInt160 author)
         {
             if (!Runtime.CheckWitness(author)) return false;
-            ByteString reviewCheck = CheckReviews(editor);
-            if(reviewCheck == null){ // verifica se é a primeira vez que o artigo é submetido
+            ByteString reviewCheck = CheckReviews();
+            if(reviewCheck == ByteString.Empty){ // verifica se é a primeira vez que o artigo é submetido
                 Storage.Put(Storage.CurrentContext, author, article);
                 return true;
             } else if(reviewCheck.Equals(R)){ // verifica se o artigo foi aprovado com ressalvas e se pode ser enviado novamente
@@ -37,6 +36,20 @@ namespace PeerReview
             }else{ // verifica se o artigo já recebeu avaliação de reprovado e se não pode ser submetido
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Retorna um artigo de um determinado autor.
+        /// </summary>
+        /// <param name="reviewer">O revisor, que deve ser uma entidade autorizada para acessar o artigo.</param>
+        /// <param name="author">O autor do artigo.</param>
+        /// <returns>Retorna o hash do texto do artigo.</returns>
+        public static UInt160 GetArticle(UInt160 reviewer, UInt160 author){
+            if (!Runtime.CheckWitness(reviewer)) throw new Exception("No authorization.");
+            if(CheckReviewer(reviewer).Equals(true)){
+                return (UInt160)(Storage.Get(Storage.CurrentContext, author));
+            }
+            return null;
         }
 
         /// <summary>
@@ -57,20 +70,33 @@ namespace PeerReview
         }
 
         /// <summary>
+        /// Verifica se a identidade do reviewer é igual a de um dos reviewers assinalados 
+        /// </summary>
+        /// <param name="reviewer">O revisor a ser verificado.</param>
+        /// <returns>Retorna 'true' se o revisor estiver sido assinalado anteriormente.</returns>
+        public statis bool CheckReviewer(UInt160 reviewer){
+            // Recuperando o endereço dos revisores através das chaves contidas nos atributos.
+            UInt160 savedReviewer1 = (UInt160)Storage.Get(Storage.CurrentContext, Reviewer1);
+            UInt160 savedReviewer2 = (UInt160)Storage.Get(Storage.CurrentContext, Reviewer2);
+            UInt160 savedReviewer3 = (UInt160)Storage.Get(Storage.CurrentContext, Reviewer3);
+            //Verificando se a identidade do reviewer é igual a de um dos reviewers assinalados.
+            if (reviewer.Equals(savedReviewer1) || reviewer.Equals(savedReviewer2) || reviewer.Equals(savedReviewer3)){
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
         /// Submete uma revisão para um artigo.
         /// </summary>
         /// <param name="reviewer">O revisor que está submetendo.</param>
         /// <param name="review">A revisão, que pode ser 'Y', 'N', ou 'R'.</param>
         /// <returns>Retorna 'true' se a revisão for submetida com sucesso, 'false' caso contrário.</returns>
-        public static bool SubmitReview(UInt160 reviewer, ByteString review, ByteString article)
+        public static bool SubmitReview(UInt160 reviewer, ByteString review, UInt160 article)
         {
             if (!Runtime.CheckWitness(reviewer)) return false;
-            // Recuperando o endereço dos revisores através das chaves contidas nos atributos.
-            UInt160 savedReviewer1 = (UInt160)Storage.Get(Storage.CurrentContext, Reviewer1);
-            UInt160 savedReviewer2 = (UInt160)Storage.Get(Storage.CurrentContext, Reviewer2);
-            UInt160 savedReviewer3 = (UInt160)Storage.Get(Storage.CurrentContext, Reviewer3);
             //Verificando se a identidade do reviewer é igual a de um dos reviewers assinalados e se as revisões estão nos formatos corretos, sendo "Y" para aprovado "N" para reprovado e "R" para aprovado com ressalvas.
-            if ((reviewer.Equals(savedReviewer1) || reviewer.Equals(savedReviewer2) || reviewer.Equals(savedReviewer3)) && (review.Equals(Y) || review.Equals(N) || review.Equals(R)))
+            if (CheckReviewer(reviewer).Equals(true) && (review.Equals(Y) || review.Equals(N) || review.Equals(R)))
             {
                 Storage.Put(Storage.CurrentContext, reviewer, review);
                 return true;
@@ -80,45 +106,41 @@ namespace PeerReview
         }
 
         /// <summary>
-        /// Agrega as revisões dos revisores.
+        /// Retorna as revisões dos revisores.
         /// </summary>
-        /// <param name="editor">O editor responsável por agregar as revisões.</param>
         /// <returns>Retorna as revisões agregadas como uma sequência de bytes.</returns>
-        public static ByteString AggregateReviews(UInt160 editor)
+        public static ByteString GetReviews()
         {
-            if (!Runtime.CheckWitness(editor)) return null;
-            // Recuperando o endereço dos revisores através das chaves contidas nos atributos. 
-            UInt160 savedReviewer1 = (UInt160)Storage.Get(Storage.CurrentContext, Reviewer1);
-            UInt160 savedReviewer2 = (UInt160)Storage.Get(Storage.CurrentContext, Reviewer2);
-            UInt160 savedReviewer3 = (UInt160)Storage.Get(Storage.CurrentContext, Reviewer3);
+            // Recuperando o endereço dos revisores através das chaves contidas nos atributos.
+            UInt160 savedReviewer1 = (UInt160)(Storage.Get(Storage.CurrentContext, Reviewer1));
+            UInt160 savedReviewer2 = (UInt160)(Storage.Get(Storage.CurrentContext, Reviewer2));
+            UInt160 savedReviewer3 = (UInt160)(Storage.Get(Storage.CurrentContext, Reviewer3));
+
             // Recuperando as revisões utilizando as chaves que são endereços das wallets dos revisores.
             ByteString review1 = Storage.Get(Storage.CurrentContext, savedReviewer1);
             ByteString review2 = Storage.Get(Storage.CurrentContext, savedReviewer2);
             ByteString review3 = Storage.Get(Storage.CurrentContext, savedReviewer3);
+
+            if (review1 is null) review1 = ByteString.Empty;
+            if (review2 is null) review2 = ByteString.Empty;
+            if (review3 is null) review3 = ByteString.Empty;
+
             return review1 + review2 + review3;
         }
 
         /// <summary>
         /// Verifica as revisões para determinar o resultado com base na maioria de 'Y', 'N', ou 'R'.
         /// </summary>
-        /// <param name="editor">O identificador do editor.</param>
         /// <returns>Retorna 'Y' se a maioria das revisões for 'Y', 'N' se a maioria for 'N', e 'R' para qualquer outra maioria ou se não houver maioria.</returns>
-        public static ByteString CheckReviews(UInt160 editor){
-            ByteString allReviews = AggregateReviews(editor);
-            if (allReviews == null) return N; 
+        public static ByteString CheckReviews()
+        {
+            ByteString allReviews = GetReviews();
 
-            int countY = 0;
-            int countN = 0;
-            int countR = 0;
+            int countY = CountOccurrences(allReviews, Y);
+            int countN = CountOccurrences(allReviews, N);
+            int countR = CountOccurrences(allReviews, R);
 
-            // Contando as letras Y, N e R
-            foreach (byte b in allReviews)
-            {
-                if (b == (byte)'Y') countY++;
-                else if (b == (byte)'N') countN++;
-                else if (b == (byte)'R') countR++;
-            }
-            // Verificando qual letra é a maioria
+            // Verificando qual revisão é a maioria
             if (countY > countN && countY > countR)
             {
                 // A maioria das revisões é "Y", o artigo foi aprovado
@@ -136,9 +158,31 @@ namespace PeerReview
             }
             else
             {
-                // Nenhuma letra é a maioria, então será aprovado com ressalvas
+                // Nenhuma revisão é a maioria, então será aprovado com ressalvas
                 return R;
             }
+        }
+
+        /// <summary>
+        /// Conta o número de ocorrências de uma subsequência específica em uma sequência de bytes.
+        /// </summary>
+        /// <param name="source">A sequência de bytes onde a busca ocorrerá.</param>
+        /// <param name="pattern">A subsequência que queremos contar.</param>
+        /// <returns>O número de ocorrências do padrão na fonte.</returns>
+        public static int CountOccurrences(ByteString source, ByteString pattern)
+        {
+            int count = 0;
+            int currentIndex = 0;
+            while (currentIndex < source.Length && currentIndex >= 0)
+            {
+                currentIndex = source.IndexOf(pattern, currentIndex);
+                if (currentIndex >= 0)
+                {
+                    count++;
+                    currentIndex += pattern.Length;
+                }
+            }
+            return count;
         }
 
         /// <summary>
