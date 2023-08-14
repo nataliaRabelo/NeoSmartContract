@@ -46,7 +46,7 @@ namespace PeerReview
         /// <returns>Retorna o hash do texto do artigo.</returns>
         public static UInt160 GetArticle(UInt160 reviewer, UInt160 author){
             if (!Runtime.CheckWitness(reviewer)) throw new Exception("No authorization.");
-            if(CheckReviewer(reviewer).Equals(true)){
+            if(CheckReviewer(reviewer)){
                 return (UInt160)(Storage.Get(Storage.CurrentContext, author));
             }
             return null;
@@ -74,7 +74,7 @@ namespace PeerReview
         /// </summary>
         /// <param name="reviewer">O revisor a ser verificado.</param>
         /// <returns>Retorna 'true' se o revisor estiver sido assinalado anteriormente.</returns>
-        public statis bool CheckReviewer(UInt160 reviewer){
+        public static bool CheckReviewer(UInt160 reviewer){
             // Recuperando o endereço dos revisores através das chaves contidas nos atributos.
             UInt160 savedReviewer1 = (UInt160)Storage.Get(Storage.CurrentContext, Reviewer1);
             UInt160 savedReviewer2 = (UInt160)Storage.Get(Storage.CurrentContext, Reviewer2);
@@ -92,11 +92,11 @@ namespace PeerReview
         /// <param name="reviewer">O revisor que está submetendo.</param>
         /// <param name="review">A revisão, que pode ser 'Y', 'N', ou 'R'.</param>
         /// <returns>Retorna 'true' se a revisão for submetida com sucesso, 'false' caso contrário.</returns>
-        public static bool SubmitReview(UInt160 reviewer, ByteString review, UInt160 article)
+        public static bool SubmitReview(UInt160 reviewer, ByteString review)
         {
             if (!Runtime.CheckWitness(reviewer)) return false;
             //Verificando se a identidade do reviewer é igual a de um dos reviewers assinalados e se as revisões estão nos formatos corretos, sendo "Y" para aprovado "N" para reprovado e "R" para aprovado com ressalvas.
-            if (CheckReviewer(reviewer).Equals(true) && (review.Equals(Y) || review.Equals(N) || review.Equals(R)))
+            if (CheckReviewer(reviewer) && (review.Equals(Y) || review.Equals(N) || review.Equals(R)))
             {
                 Storage.Put(Storage.CurrentContext, reviewer, review);
                 return true;
@@ -172,16 +172,26 @@ namespace PeerReview
         public static int CountOccurrences(ByteString source, ByteString pattern)
         {
             int count = 0;
-            int currentIndex = 0;
-            while (currentIndex < source.Length && currentIndex >= 0)
+
+            for (int i = 0; i <= source.Length - pattern.Length; i++)
             {
-                currentIndex = source.IndexOf(pattern, currentIndex);
-                if (currentIndex >= 0)
+                bool isMatch = true;
+
+                for (int j = 0; j < pattern.Length; j++)
+                {
+                    if (source[i + j] != pattern[j])
+                    {
+                        isMatch = false;
+                        break;
+                    }
+                }
+
+                if (isMatch)
                 {
                     count++;
-                    currentIndex += pattern.Length;
                 }
             }
+
             return count;
         }
 
