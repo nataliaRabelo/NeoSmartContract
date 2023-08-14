@@ -10,12 +10,12 @@ namespace PeerReview
     public class Contract1 : SmartContract
     {
         //Constantes 
-        static readonly ByteString Reviewer1 = "01000001";
-        static readonly ByteString Reviewer2 = "01000010";
-        static readonly ByteString Reviewer3 = "01000011";
-        static readonly ByteString Y = "01011001";
-        static readonly ByteString N = "01001110";
-        static readonly ByteString R = "01010010";
+        static readonly ByteString Reviewer1 = "A";
+        static readonly ByteString Reviewer2 = "B";
+        static readonly ByteString Reviewer3 = "C";
+        static readonly BigInteger Y = 1;
+        static readonly BigInteger N = 2;
+        static readonly BigInteger R = 3;
 
         /// <summary>
         /// Submete um artigo para revisão, verificando o estado das revisões anteriores, se houver.
@@ -26,8 +26,8 @@ namespace PeerReview
         public static bool SubmitArticle(UInt160 article, UInt160 author)
         {
             if (!Runtime.CheckWitness(author)) return false;
-            ByteString reviewCheck = CheckReviews();
-            if(reviewCheck == ByteString.Empty){ // verifica se é a primeira vez que o artigo é submetido
+            BigInteger reviewCheck = CheckReviews();
+            if(reviewCheck == 0){ // verifica se é a primeira vez que o artigo é submetido
                 Storage.Put(Storage.CurrentContext, author, article);
                 return true;
             } else if(reviewCheck.Equals(R)){ // verifica se o artigo foi aprovado com ressalvas e se pode ser enviado novamente
@@ -92,7 +92,7 @@ namespace PeerReview
         /// <param name="reviewer">O revisor que está submetendo.</param>
         /// <param name="review">A revisão, que pode ser 'Y', 'N', ou 'R'.</param>
         /// <returns>Retorna 'true' se a revisão for submetida com sucesso, 'false' caso contrário.</returns>
-        public static bool SubmitReview(UInt160 reviewer, ByteString review)
+        public static bool SubmitReview(UInt160 reviewer, BigInteger review)
         {
             if (!Runtime.CheckWitness(reviewer)) return false;
             //Verificando se a identidade do reviewer é igual a de um dos reviewers assinalados e se as revisões estão nos formatos corretos, sendo "Y" para aprovado "N" para reprovado e "R" para aprovado com ressalvas.
@@ -109,7 +109,7 @@ namespace PeerReview
         /// Retorna as revisões dos revisores.
         /// </summary>
         /// <returns>Retorna as revisões agregadas como uma sequência de bytes.</returns>
-        public static ByteString GetReviews()
+        public static BigInteger GetReviews()
         {
             // Recuperando o endereço dos revisores através das chaves contidas nos atributos.
             UInt160 savedReviewer1 = (UInt160)(Storage.Get(Storage.CurrentContext, Reviewer1));
@@ -117,13 +117,9 @@ namespace PeerReview
             UInt160 savedReviewer3 = (UInt160)(Storage.Get(Storage.CurrentContext, Reviewer3));
 
             // Recuperando as revisões utilizando as chaves que são endereços das wallets dos revisores.
-            ByteString review1 = Storage.Get(Storage.CurrentContext, savedReviewer1);
-            ByteString review2 = Storage.Get(Storage.CurrentContext, savedReviewer2);
-            ByteString review3 = Storage.Get(Storage.CurrentContext, savedReviewer3);
-
-            if (review1 is null) review1 = ByteString.Empty;
-            if (review2 is null) review2 = ByteString.Empty;
-            if (review3 is null) review3 = ByteString.Empty;
+            BigInteger review1 = (BigInteger)(Storage.Get(Storage.CurrentContext, savedReviewer1));
+            BigInteger review2 = (BigInteger)(Storage.Get(Storage.CurrentContext, savedReviewer2));
+            BigInteger review3 = (BigInteger)(Storage.Get(Storage.CurrentContext, savedReviewer3));
 
             return review1 + review2 + review3;
         }
@@ -132,72 +128,29 @@ namespace PeerReview
         /// Verifica as revisões para determinar o resultado com base na maioria de 'Y', 'N', ou 'R'.
         /// </summary>
         /// <returns>Retorna 'Y' se a maioria das revisões for 'Y', 'N' se a maioria for 'N', e 'R' para qualquer outra maioria ou se não houver maioria.</returns>
-        public static ByteString CheckReviews()
+        public static BigInteger CheckReviews()
         {
-            ByteString allReviews = GetReviews();
+            BigInteger totalReviews = GetReviews();
+            
+            if(totalReviews == 0) return 0;
 
-            int countY = CountOccurrences(allReviews, Y);
-            int countN = CountOccurrences(allReviews, N);
-            int countR = CountOccurrences(allReviews, R);
+            // Calcula a contagem para cada revisão
+            int countY = 0, countN = 0, countR = 0;
 
-            // Verificando qual revisão é a maioria
-            if(countY == 0 && countN == 0 && countR == 0)
-            {
-                // Ainda não foram realizadas revisões
-                return "";
-            }
-            else if (countY > countN && countY > countR) 
-            {
-                // A maioria das revisões é "Y", o artigo foi aprovado
-                return Y;
-            }
-            else if (countN > countY && countN > countR)
-            {
-                // A maioria das revisões é "N", o artigo foi reprovado
-                return N;
-            }
-            else if (countR > countY && countR > countN)
-            {
-                // A maioria das revisões é "R", o artigo foi aprovado com ressalvas
-                return R;
-            }
-            else
-            {
-                // Nenhuma revisão é a maioria, então será aprovado com ressalvas
-                return R;
-            }
-        }
+            countY = (int)(totalReviews / Y);
+            totalReviews -= (countY * Y);
+            
+            countN = (int)(totalReviews / N);
+            totalReviews -= (countN * N);
 
-        /// <summary>
-        /// Conta o número de ocorrências de uma subsequência específica em uma sequência de bytes.
-        /// </summary>
-        /// <param name="source">A sequência de bytes onde a busca ocorrerá.</param>
-        /// <param name="pattern">A subsequência que queremos contar.</param>
-        /// <returns>O número de ocorrências do padrão na fonte.</returns>
-        public static int CountOccurrences(ByteString source, ByteString pattern)
-        {
-            int count = 0;
+            countR = (int)(totalReviews / R);
+            // Nota: O restante será automaticamente considerado para 'R' (ou seja, countR) devido à forma como o código está estruturado.
 
-            for (int i = 0; i <= source.Length - pattern.Length; i++)
-            {
-                bool isMatch = true;
-
-                for (int j = 0; j < pattern.Length; j++)
-                {
-                    if (source[i + j] != pattern[j])
-                    {
-                        isMatch = false;
-                        break;
-                    }
-                }
-
-                if (isMatch)
-                {
-                    count++;
-                }
-            }
-
-            return count;
+            // Determina qual revisão teve a maioria
+            if (countY > countN && countY > countR) return Y;
+            else if (countN > countY && countN > countR) return N;
+            else if (countR > countY && countR > countN) return R;
+            else return R;  // Em caso de empate ou se nenhuma revisão tiver maioria clara.
         }
 
         /// <summary>
