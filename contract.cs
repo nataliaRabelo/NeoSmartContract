@@ -141,7 +141,12 @@ namespace PeerReview
             int countR = CountOccurrences(allReviews, R);
 
             // Verificando qual revisão é a maioria
-            if (countY > countN && countY > countR)
+            if(countY == 0 && countN == 0 && countR == 0)
+            {
+                // Ainda não foram realizadas revisões
+                return "";
+            }
+            else if (countY > countN && countY > countR) 
             {
                 // A maioria das revisões é "Y", o artigo foi aprovado
                 return Y;
