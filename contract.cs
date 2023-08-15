@@ -13,43 +13,30 @@ namespace PeerReview
         static readonly ByteString Reviewer1 = "A";
         static readonly ByteString Reviewer2 = "B";
         static readonly ByteString Reviewer3 = "C";
-        static readonly BigInteger Y = 1;
-        static readonly BigInteger N = 2;
-        static readonly BigInteger R = 3;
+        static readonly BigInteger Y = 2;
+        static readonly BigInteger N = -2;
+        static readonly BigInteger R = 1;
 
         /// <summary>
         /// Submete um artigo para revisão, verificando o estado das revisões anteriores, se houver.
         /// </summary>
-        /// <param name="article">O artigo a ser submetido.</param>
+        /// <param name="article1">O artigo a ser submetido.</param>
+        /// <param name="article2">O artigo a ser submetido em caso de aprovação com ressalvas.</param>
         /// <param name="author">O autor do artigo.</param>
         /// <returns>Retorna 'true' se o artigo for submetido com sucesso. 'false' se o autor não for verificado, o artigo já tiver sido reprovado, ou não for aprovado com ressalvas.</returns>
-        public static bool SubmitArticle(UInt160 article, UInt160 author)
+        public static bool SubmitArticle(UInt160 article1, UInt160 article2, UInt160 author)
         {
             if (!Runtime.CheckWitness(author)) return false;
-            BigInteger reviewCheck = CheckReviews();
-            if(reviewCheck == 0){ // verifica se é a primeira vez que o artigo é submetido
-                Storage.Put(Storage.CurrentContext, author, article);
+            BigInteger reviewCheck = GetReviews(article1);
+            if(reviewCheck == -7){ // verifica se é a primeira vez que o artigo é submetido
+                Storage.Put(Storage.CurrentContext, author, article1);
                 return true;
-            } else if(reviewCheck.Equals(R)){ // verifica se o artigo foi aprovado com ressalvas e se pode ser enviado novamente
-                Storage.Put(Storage.CurrentContext, author, article);
+            } else if(reviewCheck >= 1){ // verifica se o artigo foi aprovado com ressalvas e se pode ser enviado novamente
+                Storage.Put(Storage.CurrentContext, author, article2);
                 return true;
             }else{ // verifica se o artigo já recebeu avaliação de reprovado e se não pode ser submetido
                 return false;
             }
-        }
-
-        /// <summary>
-        /// Retorna um artigo de um determinado autor.
-        /// </summary>
-        /// <param name="reviewer">O revisor, que deve ser uma entidade autorizada para acessar o artigo.</param>
-        /// <param name="author">O autor do artigo.</param>
-        /// <returns>Retorna o hash do texto do artigo.</returns>
-        public static UInt160 GetArticle(UInt160 reviewer, UInt160 author){
-            if (!Runtime.CheckWitness(reviewer)) throw new Exception("No authorization.");
-            if(CheckReviewer(reviewer)){
-                return (UInt160)(Storage.Get(Storage.CurrentContext, author));
-            }
-            return null;
         }
 
         /// <summary>
@@ -70,6 +57,50 @@ namespace PeerReview
         }
 
         /// <summary>
+        /// Submete uma revisão para um artigo.
+        /// </summary>
+        /// <param name="reviewer">O revisor que está submetendo.</param>
+        /// <param name="review">A revisão, que pode ser 'Y', 'N', ou 'R'.</param>
+        /// <param name="article">O hash do artigo submetido a ser associado à revisão.</param>
+        /// <param name="feedback">O hash do parecer da revisão.</param>
+        /// <returns>Retorna 'true' se a revisão for submetida com sucesso, 'false' caso contrário.</returns>
+        public static bool SubmitReview(UInt160 reviewer, BigInteger review, UInt160 article, UInt160 feedback)
+        {
+            if (!Runtime.CheckWitness(reviewer)) return false;
+            //Verificando se a identidade do reviewer é igual a de um dos reviewers assinalados e se as revisões estão nos formatos corretos, sendo "Y" para aprovado "N" para reprovado e "R" para aprovado com ressalvas.
+            if (CheckReviewer(reviewer) && (review.Equals(Y) || review.Equals(N) || review.Equals(R)))
+            {
+                Storage.Put(Storage.CurrentContext, article + reviewer, review); // submetendo a nota da revisão de um determinado artigo
+                Storage.Put(Storage.CurrentContext, reviewer + article + (UInt160)review, feedback); // submetendo o hash do parecer da revisão de um determinado artigo
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Retorna as revisões dos revisores.
+        /// </summary>
+        /// <returns>Retorna as revisões agregadas como soma de inteiros.</returns>
+        public static BigInteger GetReviews(UInt160 article)
+        {
+            // Recuperando o endereço dos revisores através das chaves contidas nos atributos.
+            UInt160 savedReviewer1 = (UInt160)(Storage.Get(Storage.CurrentContext, Reviewer1));
+            UInt160 savedReviewer2 = (UInt160)(Storage.Get(Storage.CurrentContext, Reviewer2));
+            UInt160 savedReviewer3 = (UInt160)(Storage.Get(Storage.CurrentContext, Reviewer3));
+
+            // Recuperando as revisões utilizando as chaves que são endereços das wallets dos revisores.
+            BigInteger review1 = (BigInteger)(Storage.Get(Storage.CurrentContext, article + savedReviewer1));
+            BigInteger review2 = (BigInteger)(Storage.Get(Storage.CurrentContext, article + savedReviewer2));
+            BigInteger review3 = (BigInteger)(Storage.Get(Storage.CurrentContext, article + savedReviewer3));
+
+            if(review1 == 0 && review2 == 0 && review3 == 0){
+                return -7;
+            }
+            return review1 + review2 + review3;
+        }
+
+        /// <summary>
         /// Verifica se a identidade do reviewer é igual a de um dos reviewers assinalados 
         /// </summary>
         /// <param name="reviewer">O revisor a ser verificado.</param>
@@ -84,73 +115,6 @@ namespace PeerReview
                 return true;
             }
             return false;
-        }
-
-        /// <summary>
-        /// Submete uma revisão para um artigo.
-        /// </summary>
-        /// <param name="reviewer">O revisor que está submetendo.</param>
-        /// <param name="review">A revisão, que pode ser 'Y', 'N', ou 'R'.</param>
-        /// <returns>Retorna 'true' se a revisão for submetida com sucesso, 'false' caso contrário.</returns>
-        public static bool SubmitReview(UInt160 reviewer, BigInteger review)
-        {
-            if (!Runtime.CheckWitness(reviewer)) return false;
-            //Verificando se a identidade do reviewer é igual a de um dos reviewers assinalados e se as revisões estão nos formatos corretos, sendo "Y" para aprovado "N" para reprovado e "R" para aprovado com ressalvas.
-            if (CheckReviewer(reviewer) && (review.Equals(Y) || review.Equals(N) || review.Equals(R)))
-            {
-                Storage.Put(Storage.CurrentContext, reviewer, review);
-                return true;
-            }
-
-            return false;
-        }
-
-        /// <summary>
-        /// Retorna as revisões dos revisores.
-        /// </summary>
-        /// <returns>Retorna as revisões agregadas como uma sequência de bytes.</returns>
-        public static BigInteger GetReviews()
-        {
-            // Recuperando o endereço dos revisores através das chaves contidas nos atributos.
-            UInt160 savedReviewer1 = (UInt160)(Storage.Get(Storage.CurrentContext, Reviewer1));
-            UInt160 savedReviewer2 = (UInt160)(Storage.Get(Storage.CurrentContext, Reviewer2));
-            UInt160 savedReviewer3 = (UInt160)(Storage.Get(Storage.CurrentContext, Reviewer3));
-
-            // Recuperando as revisões utilizando as chaves que são endereços das wallets dos revisores.
-            BigInteger review1 = (BigInteger)(Storage.Get(Storage.CurrentContext, savedReviewer1));
-            BigInteger review2 = (BigInteger)(Storage.Get(Storage.CurrentContext, savedReviewer2));
-            BigInteger review3 = (BigInteger)(Storage.Get(Storage.CurrentContext, savedReviewer3));
-
-            return review1 + review2 + review3;
-        }
-
-        /// <summary>
-        /// Verifica as revisões para determinar o resultado com base na maioria de 'Y', 'N', ou 'R'.
-        /// </summary>
-        /// <returns>Retorna 'Y' se a maioria das revisões for 'Y', 'N' se a maioria for 'N', e 'R' para qualquer outra maioria ou se não houver maioria.</returns>
-        public static BigInteger CheckReviews()
-        {
-            BigInteger totalReviews = GetReviews();
-            
-            if(totalReviews == 0) return 0;
-
-            // Calcula a contagem para cada revisão
-            int countY = 0, countN = 0, countR = 0;
-
-            countY = (int)(totalReviews / Y);
-            totalReviews -= (countY * Y);
-            
-            countN = (int)(totalReviews / N);
-            totalReviews -= (countN * N);
-
-            countR = (int)(totalReviews / R);
-            // Nota: O restante será automaticamente considerado para 'R' (ou seja, countR) devido à forma como o código está estruturado.
-
-            // Determina qual revisão teve a maioria
-            if (countY > countN && countY > countR) return Y;
-            else if (countN > countY && countN > countR) return N;
-            else if (countR > countY && countR > countN) return R;
-            else return R;  // Em caso de empate ou se nenhuma revisão tiver maioria clara.
         }
 
         /// <summary>
