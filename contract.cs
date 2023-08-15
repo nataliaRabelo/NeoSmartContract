@@ -20,8 +20,8 @@ namespace PeerReview
         /// <summary>
         /// Submete um artigo para revisão, verificando o estado das revisões anteriores, se houver.
         /// </summary>
-        /// <param name="article1">O artigo a ser submetido.</param>
-        /// <param name="article2">O artigo a ser submetido em caso de aprovação com ressalvas.</param>
+        /// <param name="article1">O hash do artigo a ser submetido.</param>
+        /// <param name="article2">O hash do artigo a ser submetido em caso de aprovação com ressalvas.</param>
         /// <param name="author">O autor do artigo.</param>
         /// <returns>Retorna 'true' se o artigo for submetido com sucesso. 'false' se o autor não for verificado, o artigo já tiver sido reprovado, ou não for aprovado com ressalvas.</returns>
         public static bool SubmitArticle(UInt160 article1, UInt160 article2, UInt160 author)
@@ -81,6 +81,7 @@ namespace PeerReview
         /// <summary>
         /// Retorna as revisões dos revisores.
         /// </summary>
+        /// <param name="article">O artigo submetido.</param>
         /// <returns>Retorna as revisões agregadas como soma de inteiros.</returns>
         public static BigInteger GetReviews(UInt160 article)
         {
