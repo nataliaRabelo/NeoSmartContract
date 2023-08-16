@@ -1,9 +1,12 @@
 using Neo;
 using Neo.SmartContract.Framework;
+using Neo.SmartContract.Framework.Attributes;
 using Neo.SmartContract.Framework.Native;
 using Neo.SmartContract.Framework.Services;
 using System;
 using System.Numerics;
+using System.Collections;
+using System.Collections.Generic;
 
 namespace PeerReview
 {
@@ -16,6 +19,10 @@ namespace PeerReview
         static readonly BigInteger Y = 2;
         static readonly BigInteger N = -2;
         static readonly BigInteger R = 1;
+        public static event Action<string, UInt160> my_event;
+        public static event Action<string, int> my_event_int;
+        [OpCode(OpCode.CONVERT, "0x28")]
+        public static extern ByteString AsByteString(ByteString buffer);
 
         /// <summary>
         /// Submete um artigo para revisão, verificando o estado das revisões anteriores, se houver.
@@ -71,7 +78,7 @@ namespace PeerReview
             if (CheckReviewer(reviewer) && (review.Equals(Y) || review.Equals(N) || review.Equals(R)))
             {
                 Storage.Put(Storage.CurrentContext, article + reviewer, review); // submetendo a nota da revisão de um determinado artigo
-                Storage.Put(Storage.CurrentContext, reviewer + article + (UInt160)review, feedback); // submetendo o hash do parecer da revisão de um determinado artigo
+                Storage.Put(Storage.CurrentContext, reviewer + article + feedback, feedback); // submetendo o hash do parecer da revisão de um determinado artigo
                 return true;
             }
 
@@ -86,19 +93,46 @@ namespace PeerReview
         public static BigInteger GetReviews(UInt160 article)
         {
             // Recuperando o endereço dos revisores através das chaves contidas nos atributos.
-            UInt160 savedReviewer1 = (UInt160)(Storage.Get(Storage.CurrentContext, Reviewer1));
-            UInt160 savedReviewer2 = (UInt160)(Storage.Get(Storage.CurrentContext, Reviewer2));
-            UInt160 savedReviewer3 = (UInt160)(Storage.Get(Storage.CurrentContext, Reviewer3));
+            byte[] savedReviewer1bs = (byte[])Storage.Get(Storage.CurrentContext, Reviewer1);
+            byte[] savedReviewer2bs = (byte[])Storage.Get(Storage.CurrentContext, Reviewer2);
+            byte[] savedReviewer3bs = (byte[])Storage.Get(Storage.CurrentContext, Reviewer3);
+            UInt160 savedReviewer1 = (UInt160)savedReviewer1bs;
+            UInt160 savedReviewer2 = (UInt160)savedReviewer2bs;
+            UInt160 savedReviewer3 = (UInt160)savedReviewer3bs;
 
             // Recuperando as revisões utilizando as chaves que são endereços das wallets dos revisores.
-            BigInteger review1 = (BigInteger)(Storage.Get(Storage.CurrentContext, article + savedReviewer1));
-            BigInteger review2 = (BigInteger)(Storage.Get(Storage.CurrentContext, article + savedReviewer2));
-            BigInteger review3 = (BigInteger)(Storage.Get(Storage.CurrentContext, article + savedReviewer3));
+            byte[] review1bs = (byte[])Storage.Get(Storage.CurrentContext, article + savedReviewer1);
+            byte[] review2bs = (byte[])Storage.Get(Storage.CurrentContext, article + savedReviewer2);
+            byte[] review3bs = (byte[])Storage.Get(Storage.CurrentContext, article + savedReviewer3);
+            BigInteger review1 = new BigInteger(review1bs);
+            BigInteger review2 = new BigInteger(review2bs);
+            BigInteger review3 = new BigInteger(review3bs);
 
             if(review1 == 0 && review2 == 0 && review3 == 0){
                 return -7;
             }
             return review1 + review2 + review3;
+        }
+
+        /// <summary>
+        /// Método de debug.
+        /// </summary>
+        /// <param name="article">O artigo submetido.</param>
+        /// <returns>Retorna as revisões agregadas como soma de inteiros.</returns>
+        public static string GetReviews0(UInt160 article)
+        {
+            // Recuperando o endereço dos revisores através das chaves contidas nos atributos.
+            my_event("article", article);
+            ByteString savedReviewer1bs = AsByteString(Storage.Get(Storage.CurrentContext, "A"));
+            //byte[] savedReviewer1bs = (byte[])Storage.Get(Storage.CurrentContext, Reviewer1);
+            my_event_int("savedReviewer1bs",savedReviewer1bs.Length);
+            UInt160 savedReviewer1 = (UInt160)savedReviewer1bs;
+            my_event("savedReviewer1", savedReviewer1);
+            string str1 = (string)(ByteString)(byte[])savedReviewer1;
+            string strArticle = (string)(ByteString)(byte[])article;
+            return str1 + strArticle;
+            //return article;
+            
         }
 
         /// <summary>
@@ -116,17 +150,6 @@ namespace PeerReview
                 return true;
             }
             return false;
-        }
-
-        /// <summary>
-        /// Destroi o contrato inteligente atual.
-        /// </summary>
-        /// <param name="editor">O endereço do editor, que deve ser uma entidade autorizada para destruir o contrato.</param>
-        /// <exception cref="Exception">Lança uma exceção se o chamador não for autorizado a destruir o contrato.</exception>
-        public static void Destroy(UInt160 editor)
-        {
-            if (!Runtime.CheckWitness(editor)) throw new Exception("No authorization.");
-            ContractManagement.Destroy();
         }
     }
 }
