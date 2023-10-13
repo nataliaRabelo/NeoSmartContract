@@ -13,12 +13,12 @@ namespace PeerReview
     public class Contract1 : SmartContract
     {
         //Constantes 
-        static readonly ByteString Reviewer1 = "A";
-        static readonly ByteString Reviewer2 = "B";
-        static readonly ByteString Reviewer3 = "C";
-        static readonly BigInteger Y = 2;
-        static readonly BigInteger N = -2;
-        static readonly BigInteger R = 1;
+        static readonly string Reviewer1 = "A";
+        static readonly string Reviewer2 = "B";
+        static readonly string Reviewer3 = "C";
+        static readonly UInt160 Y = (UInt160)"Y";
+        static readonly UInt160 N = (UInt160)"N";
+        static readonly UInt160 R = (UInt160)"R";
         public static event Action<string, UInt160> my_event;
         public static event Action<string, int> my_event_int;
         [OpCode(OpCode.CONVERT, "0x28")]
@@ -27,23 +27,28 @@ namespace PeerReview
         /// <summary>
         /// Submete um artigo para revisão, verificando o estado das revisões anteriores, se houver.
         /// </summary>
-        /// <param name="article1">O hash do artigo a ser submetido.</param>
-        /// <param name="article2">O hash do artigo a ser submetido em caso de aprovação com ressalvas.</param>
+        /// <param name="article">O hash do artigo a ser submetido.</param>
         /// <param name="author">O autor do artigo.</param>
         /// <returns>Retorna 'true' se o artigo for submetido com sucesso. 'false' se o autor não for verificado, o artigo já tiver sido reprovado, ou não for aprovado com ressalvas.</returns>
-        public static bool SubmitArticle(UInt160 article1, UInt160 article2, UInt160 author)
+        public static bool SubmitArticle(UInt160 article, UInt160 author)
         {
             if (!Runtime.CheckWitness(author)) return false;
-            BigInteger reviewCheck = GetReviews(article1);
-            if(reviewCheck == -7){ // verifica se é a primeira vez que o artigo é submetido
+            string strArticle = (string)(ByteString)(byte[])article;
+            string strAuthor = (string)(ByteString)(byte[])author;
+            Storage.Put(Storage.CurrentContext, strAuthor, strArticle);
+            /**
+            ByteString reviewCheck = GetReviews(article1);
+            if(reviewCheck == "Y"){ // verifica se é a primeira vez que o artigo é submetido
                 Storage.Put(Storage.CurrentContext, author, article1);
                 return true;
-            } else if(reviewCheck >= 1){ // verifica se o artigo foi aprovado com ressalvas e se pode ser enviado novamente
+            } else if(reviewCheck == "Y"){ // verifica se o artigo foi aprovado com ressalvas e se pode ser enviado novamente
                 Storage.Put(Storage.CurrentContext, author, article2);
                 return true;
             }else{ // verifica se o artigo já recebeu avaliação de reprovado e se não pode ser submetido
                 return false;
             }
+            */
+            return true;
         }
 
         /// <summary>
@@ -57,9 +62,12 @@ namespace PeerReview
         public static bool AssignReviewers(UInt160 editor, UInt160 reviewer1, UInt160 reviewer2, UInt160 reviewer3)
         {
             if (!Runtime.CheckWitness(editor)) return false;
-            Storage.Put(Storage.CurrentContext, Reviewer1, reviewer1);
-            Storage.Put(Storage.CurrentContext, Reviewer2, reviewer2);
-            Storage.Put(Storage.CurrentContext, Reviewer3, reviewer3);
+            string strReviewer1 = (string)(ByteString)(byte[])reviewer1;
+            string strReviewer2 = (string)(ByteString)(byte[])reviewer2;
+            string strReviewer3 = (string)(ByteString)(byte[])reviewer3;
+            Storage.Put(Storage.CurrentContext, Reviewer1, strReviewer1);
+            Storage.Put(Storage.CurrentContext, Reviewer2, strReviewer2);
+            Storage.Put(Storage.CurrentContext, Reviewer3, strReviewer3);
             return true;
         }
 
@@ -71,14 +79,18 @@ namespace PeerReview
         /// <param name="article">O hash do artigo submetido a ser associado à revisão.</param>
         /// <param name="feedback">O hash do parecer da revisão.</param>
         /// <returns>Retorna 'true' se a revisão for submetida com sucesso, 'false' caso contrário.</returns>
-        public static bool SubmitReview(UInt160 reviewer, BigInteger review, UInt160 article, UInt160 feedback)
+        public static bool SubmitReview(UInt160 reviewer, UInt160 review, UInt160 article, UInt160 feedback)
         {
             if (!Runtime.CheckWitness(reviewer)) return false;
             //Verificando se a identidade do reviewer é igual a de um dos reviewers assinalados e se as revisões estão nos formatos corretos, sendo "Y" para aprovado "N" para reprovado e "R" para aprovado com ressalvas.
-            if (CheckReviewer(reviewer) && (review.Equals(Y) || review.Equals(N) || review.Equals(R)))
+            if (CheckReviewer(reviewer)) // && (review.Equals(Y) || review.Equals(N) || review.Equals(R))
             {
-                Storage.Put(Storage.CurrentContext, article + reviewer, review); // submetendo a nota da revisão de um determinado artigo
-                Storage.Put(Storage.CurrentContext, reviewer + article + feedback, feedback); // submetendo o hash do parecer da revisão de um determinado artigo
+                string strReviewer = (string)(ByteString)(byte[])reviewer;
+                string strArticle = (string)(ByteString)(byte[])article;
+                string strFeedback = (string)(ByteString)(byte[])feedback;
+                string strReview = (string)(ByteString)(byte[])review;
+                Storage.Put(Storage.CurrentContext, strArticle + strReviewer, strReview); // submetendo a nota da revisão de um determinado artigo
+                Storage.Put(Storage.CurrentContext, strReviewer + strArticle + strFeedback, feedback); // submetendo o hash do parecer da revisão de um determinado artigo
                 return true;
             }
 
@@ -88,30 +100,36 @@ namespace PeerReview
         /// <summary>
         /// Retorna as revisões dos revisores.
         /// </summary>
-        /// <param name="article">O artigo submetido.</param>
+        /// <param name="article">O hash do artigo submetido.</param>
         /// <returns>Retorna as revisões agregadas como soma de inteiros.</returns>
-        public static BigInteger GetReviews(UInt160 article)
+        public static string GetReviews(UInt160 article)
         {
+            string strArticle = (string)(ByteString)(byte[])article;
             // Recuperando o endereço dos revisores através das chaves contidas nos atributos.
-            byte[] savedReviewer1bs = (byte[])Storage.Get(Storage.CurrentContext, Reviewer1);
-            byte[] savedReviewer2bs = (byte[])Storage.Get(Storage.CurrentContext, Reviewer2);
-            byte[] savedReviewer3bs = (byte[])Storage.Get(Storage.CurrentContext, Reviewer3);
+            ByteString savedReviewer1bs = AsByteString(Storage.Get(Storage.CurrentContext, Reviewer1));
+            ByteString savedReviewer2bs = AsByteString(Storage.Get(Storage.CurrentContext, Reviewer2));
+            ByteString savedReviewer3bs = AsByteString(Storage.Get(Storage.CurrentContext, Reviewer3));
             UInt160 savedReviewer1 = (UInt160)savedReviewer1bs;
-            UInt160 savedReviewer2 = (UInt160)savedReviewer2bs;
-            UInt160 savedReviewer3 = (UInt160)savedReviewer3bs;
+            UInt160 savedReviewer2 = (UInt160)savedReviewer1bs;
+            UInt160 savedReviewer3 = (UInt160)savedReviewer1bs;
+            string strReviewer1 = (string)(ByteString)(byte[])savedReviewer1;
+            string strReviewer2 = (string)(ByteString)(byte[])savedReviewer2;
+            string strReviewer3 = (string)(ByteString)(byte[])savedReviewer3;
 
             // Recuperando as revisões utilizando as chaves que são endereços das wallets dos revisores.
-            byte[] review1bs = (byte[])Storage.Get(Storage.CurrentContext, article + savedReviewer1);
-            byte[] review2bs = (byte[])Storage.Get(Storage.CurrentContext, article + savedReviewer2);
-            byte[] review3bs = (byte[])Storage.Get(Storage.CurrentContext, article + savedReviewer3);
-            BigInteger review1 = new BigInteger(review1bs);
-            BigInteger review2 = new BigInteger(review2bs);
-            BigInteger review3 = new BigInteger(review3bs);
+            ByteString review1 = AsByteString(Storage.Get(Storage.CurrentContext, strArticle + strReviewer1));
+            ByteString review2 = AsByteString(Storage.Get(Storage.CurrentContext, strArticle + strReviewer2));
+            ByteString review3 = AsByteString(Storage.Get(Storage.CurrentContext, strArticle + strReviewer3));
+            UInt160 review160One = (UInt160)review1;
+            UInt160 review160Two = (UInt160)review2;
+            UInt160 review160Three = (UInt160)review3;
+            string strReview1 = (string)(ByteString)(byte[])review160One;
+            string strReview2 = (string)(ByteString)(byte[])review160Two;
+            string strReview3 = (string)(ByteString)(byte[])review160Three;
+            return strReview1 + strReview2 + strReview3;
+            //my_event_str("sumOfStrings",sumOfStrings);
 
-            if(review1 == 0 && review2 == 0 && review3 == 0){
-                return -7;
-            }
-            return review1 + review2 + review3;
+            //return strReview1;
         }
 
         /// <summary>
@@ -142,14 +160,25 @@ namespace PeerReview
         /// <returns>Retorna 'true' se o revisor estiver sido assinalado anteriormente.</returns>
         public static bool CheckReviewer(UInt160 reviewer){
             // Recuperando o endereço dos revisores através das chaves contidas nos atributos.
-            UInt160 savedReviewer1 = (UInt160)Storage.Get(Storage.CurrentContext, Reviewer1);
-            UInt160 savedReviewer2 = (UInt160)Storage.Get(Storage.CurrentContext, Reviewer2);
-            UInt160 savedReviewer3 = (UInt160)Storage.Get(Storage.CurrentContext, Reviewer3);
+            ByteString savedReviewer1bs = AsByteString(Storage.Get(Storage.CurrentContext, Reviewer1));
+            ByteString savedReviewer2bs = AsByteString(Storage.Get(Storage.CurrentContext, Reviewer2));
+            ByteString savedReviewer3bs = AsByteString(Storage.Get(Storage.CurrentContext, Reviewer3));
+            UInt160 savedReviewer1 = (UInt160)savedReviewer1bs;
+            UInt160 savedReviewer2 = (UInt160)savedReviewer2bs;
+            UInt160 savedReviewer3 = (UInt160)savedReviewer3bs;
+            string strInputReviewer = (string)(ByteString)(byte[])reviewer;
+            string strReviewer1 = (string)(ByteString)(byte[])savedReviewer1;
+            string strReviewer2 = (string)(ByteString)(byte[])savedReviewer2;
+            string strReviewer3 = (string)(ByteString)(byte[])savedReviewer3;
             //Verificando se a identidade do reviewer é igual a de um dos reviewers assinalados.
-            if (reviewer.Equals(savedReviewer1) || reviewer.Equals(savedReviewer2) || reviewer.Equals(savedReviewer3)){
+            if (strInputReviewer.Equals(strReviewer1) || strInputReviewer.Equals(strReviewer2) || strInputReviewer.Equals(strReviewer3)){
                 return true;
             }
             return false;
+        }
+
+        public static UInt160 getY(){
+            return Y;
         }
     }
 }
