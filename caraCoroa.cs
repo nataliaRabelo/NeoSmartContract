@@ -22,10 +22,25 @@ namespace CaraCoroaContract
         public static event Action<string> my_event_str_one;
         public static event Action<string, UInt160> my_event;
         public static event Action<BigInteger> my_event_integer;
+        public static event Action<UInt160> my_event_uint160;
         [OpCode(OpCode.CONVERT, "0x28")]
         public static extern ByteString AsByteString(ByteString buffer);
 
         public static bool Verify() => true;
+
+        public static void PrintStorage(string s){
+
+            ByteString storageResult = AsByteString(Storage.Get(Storage.CurrentContext, s));
+            my_event_uint160((UInt160)storageResult);
+
+        }
+
+        public static void PrintStorageString(string s){
+
+            ByteString storageResult = AsByteString(Storage.Get(Storage.CurrentContext, s));
+            my_event_str_one(storageResult);
+
+        }
 
         public static UInt160 GetPlayer1(){
 
@@ -42,7 +57,7 @@ namespace CaraCoroaContract
         }
 
         public static bool AssignPlayers(UInt160 juiz, UInt160 jogador1, UInt160 jogador2){
-            if (!Runtime.CheckWitness(juiz)) return false;
+            Inicializa();
             string strJuiz1 = (string)(ByteString)(byte[])juiz;
             string strJog2 = (string)(ByteString)(byte[])jogador1;
             string strJog3 = (string)(ByteString)(byte[])jogador2;
@@ -51,6 +66,10 @@ namespace CaraCoroaContract
             Storage.Put(Storage.CurrentContext, Jogador2Key, strJog3);
             return true;
 
+        }
+
+        public static void Inicializa(){
+            Storage.Put(Storage.CurrentContext, "jogo", "X");
         }
 
         public static bool NovoJogo(string caraCoroa)
@@ -65,7 +84,7 @@ namespace CaraCoroaContract
                 my_event_str_one("Erro: esperava jogador 1");
                 return false;
             }
-            if (Storage.Get(Storage.CurrentContext, "jogo").Length > 0)
+            if (Storage.Get(Storage.CurrentContext, "jogo") != "X")
             {
                 my_event_str_one("Erro: jogo ja comecou! Jogador 2 deve jogar!");
                 return false;
@@ -82,7 +101,7 @@ namespace CaraCoroaContract
                 my_event_str_one("Erro: esperava jogador 2");
                 return false;
             }
-            if (Storage.Get(Storage.CurrentContext, "jogo").Length == 0)
+            if (Storage.Get(Storage.CurrentContext, "jogo") == "X")
             {
                 my_event_str_one("Erro: jogo nao comecou! Jogador 1 deve jogar!");
                 return false;
@@ -96,7 +115,8 @@ namespace CaraCoroaContract
                 my_event_str_one("Jogador 1 venceu!");
             else
                 my_event_str_one("Jogador 2 venceu!");
-            Storage.Delete(Storage.CurrentContext, "jogo");
+            Inicializa();
+            //Storage.Delete(Storage.CurrentContext, "jogo");
             return true;
         }
     }
