@@ -20,6 +20,7 @@ namespace Neo.SmartContract
         // Declaração de eventos para notificação e log.
         public static event Action<string> my_event_str_one;
         public static event Action<string, string> my_event_str;
+        public static event Action<UInt160> my_event_uint160;
         // Declaração de um OpCode externo para conversão de dados para ByteString.
         [OpCode(OpCode.CONVERT, "0x28")]
         public static extern ByteString AsByteString(ByteString buffer);
