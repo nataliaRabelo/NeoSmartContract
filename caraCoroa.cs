@@ -10,8 +10,8 @@ using System.Numerics;
 
 namespace CaraCoroaContract
 {
-    [ManifestExtra("Author", "Seu Nome")]
-    [ManifestExtra("Email", "seu_email@example.com")]
+    [ManifestExtra("Author", "Natália Rabelo")]
+    [ManifestExtra("Email", "nataliabruno@id.uff.br")]
     [ManifestExtra("Description", "Um jogo simples de Cara ou Coroa")]
     public class CaraCoroa : SmartContract
     {
@@ -65,7 +65,6 @@ namespace CaraCoroaContract
             Storage.Put(Storage.CurrentContext, Jogador1Key, strJog2);
             Storage.Put(Storage.CurrentContext, Jogador2Key, strJog3);
             return true;
-
         }
 
         public static void Inicializa(){

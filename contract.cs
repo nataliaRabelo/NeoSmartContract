@@ -10,15 +10,18 @@ using System.Collections.Generic;
 
 namespace PeerReview
 {
+    [ManifestExtra("Author", "Natália Rabelo")]
+    [ManifestExtra("Email", "nataliabruno@id.uff.br")]
+    [ManifestExtra("Description", "Sistema de revisão de pares científicos")]
     public class Contract1 : SmartContract
     {
         //Constantes 
         static readonly string Reviewer1 = "A";
         static readonly string Reviewer2 = "B";
         static readonly string Reviewer3 = "C";
-        static readonly UInt160 Y = (UInt160)"Y";
-        static readonly UInt160 N = (UInt160)"N";
-        static readonly UInt160 R = (UInt160)"R";
+        static readonly string Y = "Y";
+        static readonly string N = "N";
+        static readonly string R = "R";
         public static event Action<string, UInt160> my_event;
         public static event Action<string, int> my_event_int;
         [OpCode(OpCode.CONVERT, "0x28")]

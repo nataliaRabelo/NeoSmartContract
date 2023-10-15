@@ -10,72 +10,104 @@ using System.Numerics;
 
 namespace StakingTokenContract
 {
-    [ManifestExtra("Author", "Your Name")]
-    [ManifestExtra("Email", "Your Email")]
-    [ManifestExtra("Description", "Staking Token Contract with mint and burn functionality")]
+    // Atributos que especificam padrões e permissões do contrato.
     [SupportedStandards("NEP-17")]
     [ContractPermission("*", "onNEP17Payment")]
     public partial class StakingToken : Nep17Token
     {
-        private static readonly UInt160 Owner = 
-           InitialValueAttribute.InitContractAccount("NhGobEnuWX5rVdpnuZZAZExPoRs5J6D2Sb");
+        // Mapeamento de Storage usado para armazenar stakes dos usuários.
         private static StorageMap StakeMap => new StorageMap(Storage.CurrentContext, "stake");
-        
+        // Declaração de um OpCode externo, neste caso, convertendo dados para ByteString.
+        [OpCode(OpCode.CONVERT, "0x28")]
+        public static extern ByteString AsByteString(ByteString buffer);
+        // Declaração de um evento para ser disparado durante execuções específicas do contrato, neste caso sendo usado para printar mensagens.
+        public static event Action<string> my_event_str_one;
+        // Sobreposição do método Decimals para definir a quantidade de casas decimais do token.
         public override byte Decimals() => 8;
+        // Sobreposição do método Symbol para definir o símbolo do token.
         public override string Symbol() => "STK";
-
-        public static void _deploy(object data, bool update)
+        // Método de implantação do contrato que também minta tokens iniciais para o owner.
+        public static void _deploy(UInt160 owner, object data, bool update)
         {
             if (update) return;
-            Nep17Token.Mint(Owner, 100_000_000 * (BigInteger.Pow(10, 8)));
+            Nep17Token.Mint(owner, 100_000_000 * (BigInteger.Pow(10, 8)));
         }
 
-        private static bool IsOwner() => Runtime.CheckWitness(Owner);
-
-        public static void MintTokens(UInt160 to, BigInteger amount)
+        // Método para criar novos tokens, verificando permissões e autenticações.
+        public static void MintTokens(UInt160 owner, UInt160 to, BigInteger amount)
         {
-            if (!IsOwner()) throw new InvalidOperationException("No Authorization!");
+            // Verifica se a chamada foi feita pelo owner.
+            if (!Runtime.CheckWitness(owner)){
+                my_event_str_one("No Authorization!");
+            }
             Nep17Token.Mint(to, amount);
         }
 
-        public static void BurnTokens(UInt160 from, BigInteger amount)
+        // Método para queimar/destuir tokens, verificando permissões e autenticações.
+        public static void BurnTokens(UInt160 owner, UInt160 from, BigInteger amount)
         {
-            if (!IsOwner() && !Runtime.CheckWitness(from)) throw new InvalidOperationException("No Authorization!");
+            // Verifica se a chamada foi feita pelo owner e pelo titular dos tokens.
+            if (!Runtime.CheckWitness(owner) || !Runtime.CheckWitness(from)){
+                my_event_str_one("No Authorization!");
+            } 
             Nep17Token.Burn(from, amount);
         }
 
+        // Método para fazer stake de tokens.
         public static void StakeTokens(UInt160 account, BigInteger amount)
         {
-            if (!Runtime.CheckWitness(account)) throw new InvalidOperationException("No Authorization!");
-            if (BalanceOf(account) < amount) throw new InvalidOperationException("Insufficient Balance!");
-
+            // Verifica se a chamada foi feita pelo titular da conta.
+            if (!Runtime.CheckWitness(account)){
+                my_event_str_one("No Authorization!");
+            }
+            // Verifica se a conta tem saldo suficiente.
+            if (BalanceOf(account) < amount){
+                my_event_str_one("Insufficient Balance!");
+            }
+            // Transfere os tokens para o contrato e atualiza o mapeamento de stake.
             Nep17Token.Transfer(account, Runtime.ExecutingScriptHash, amount, null);
-            BigInteger currentStake = StakeMap.Get(account).ToBigInteger();
-            StakeMap.Put(account, currentStake + amount);
+            ByteString currentStake = AsByteString(StakeMap.Get(account));
+            BigInteger currentStakeBigInteger = (BigInteger)currentStake;
+            StakeMap.Put(account, currentStakeBigInteger + amount);
         }
 
+        // Método para enviar tokens entre contas, verificando permissões e saldos.
         public static bool SendTokens(UInt160 from, UInt160 to, BigInteger amount, object data)
         {
-            if (!Runtime.CheckWitness(from)) throw new InvalidOperationException("No Authorization!");
-            if (BalanceOf(from) < amount) throw new InvalidOperationException("Insufficient Balance!");
-            
+            // Verifica se a chamada foi feita pelo remetente.
+            if (!Runtime.CheckWitness(from)){
+                my_event_str_one("No Authorization!");
+            }
+            // Verifica se o remetente tem saldo suficiente. 
+            if (BalanceOf(from) < amount){
+                my_event_str_one("Insufficient Balance!");
+            } 
             return Nep17Token.Transfer(from, to, amount, data);
         }
 
-
+        // Método para remover tokens do stake, verificando permissões e saldos.
         public static void UnstakeTokens(UInt160 account, BigInteger amount)
         {
-            if (!Runtime.CheckWitness(account)) throw new InvalidOperationException("No Authorization!");
-            BigInteger currentStake = StakeMap.Get(account).ToBigInteger();
-            if (currentStake < amount) throw new InvalidOperationException("Insufficient Staked Balance!");
-
+            // Verifica se a chamada foi feita pelo titular da conta.
+            if (!Runtime.CheckWitness(account)){
+                my_event_str_one("No Authorization!");
+            } 
+            ByteString currentStake = AsByteString(StakeMap.Get(account));
+            BigInteger currentStakeBigInteger = (BigInteger)currentStake;
+            // Verifica se o titular da conta tem saldo de stake suficiente.
+            if (currentStakeBigInteger < amount){
+                my_event_str_one("Insufficient Staked Balance!");
+            } 
+            // Transfere os tokens do contrato para o titular e atualiza o mapeamento de stake.
             Nep17Token.Transfer(Runtime.ExecutingScriptHash, account, amount, null);
-            StakeMap.Put(account, currentStake - amount);
+            StakeMap.Put(account, currentStakeBigInteger - amount);
         }
-
+        
+        // Método para obter a quantidade de tokens em stake de uma conta.
         public static BigInteger GetStakedAmount(UInt160 account)
         {
-            return StakeMap.Get(account).ToBigInteger();
+            ByteString stakeAmount = AsByteString(StakeMap.Get(account));
+            return (BigInteger) stakeAmount;
         }
     }
 }
