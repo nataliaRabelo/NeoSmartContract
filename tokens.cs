@@ -20,12 +20,32 @@ namespace StakingTokenContract
         // Declaração de um OpCode externo, neste caso, convertendo dados para ByteString.
         [OpCode(OpCode.CONVERT, "0x28")]
         public static extern ByteString AsByteString(ByteString buffer);
-        // Declaração de um evento para ser disparado durante execuções específicas do contrato, neste caso sendo usado para printar mensagens.
+        // Declaração de um evento para ser disparado durante execuções específicas do contrato, neste caso sendo usado para printar mensagens e valores armazenados no storage em string.
         public static event Action<string> my_event_str_one;
+        // Declaração de um evento para ser disparado durante execuções específicas do contrato, neste caso sendo usado para printar valores armazenados no storage em UInt160.
+        public static event Action<UInt160> my_event_uint160;
         // Sobreposição do método Decimals para definir a quantidade de casas decimais do token.
         public override byte Decimals() => 8;
         // Sobreposição do método Symbol para definir o símbolo do token.
         public override string Symbol() => "STK";
+        // Método de implantação do contrato que também minta tokens iniciais para o owner.
+
+        // Método que imprime o valor armazenado no Storage, convertido para UInt160, associado à chave dada como parâmetro.
+        public static void PrintStorageUInt160(string s){
+
+            ByteString storageResult = AsByteString(Storage.Get(Storage.CurrentContext, s));
+            my_event_uint160((UInt160)storageResult);
+
+        }
+
+        // Método que imprime o valor armazenado no Storage, como uma string, associado à chave dada como parâmetro.
+        public static void PrintStorageString(string s){
+
+            ByteString storageResult = AsByteString(Storage.Get(Storage.CurrentContext, s));
+            my_event_str_one(storageResult);
+
+        }
+
         // Método de implantação do contrato que também minta tokens iniciais para o owner.
         public static void _deploy(UInt160 owner, object data, bool update)
         {
@@ -102,7 +122,7 @@ namespace StakingTokenContract
             Nep17Token.Transfer(Runtime.ExecutingScriptHash, account, amount, null);
             StakeMap.Put(account, currentStakeBigInteger - amount);
         }
-        
+
         // Método para obter a quantidade de tokens em stake de uma conta.
         public static BigInteger GetStakedAmount(UInt160 account)
         {

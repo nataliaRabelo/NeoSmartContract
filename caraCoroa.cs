@@ -10,31 +10,33 @@ using System.Numerics;
 
 namespace CaraCoroaContract
 {
-    [ManifestExtra("Author", "Natália Rabelo")]
-    [ManifestExtra("Email", "nataliabruno@id.uff.br")]
-    [ManifestExtra("Description", "Um jogo simples de Cara ou Coroa")]
     public class CaraCoroa : SmartContract
     {
+        // Definição de chaves estáticas para identificação no Storage
         static readonly string JuizKey = "Juiz";
         static readonly string Jogador1Key = "Jogador1";
         static readonly string Jogador2Key = "Jogador2";
+
+        // Eventos para registrar e logar mensagens e valores durante a execução do contrato
         public static event Action<string, string> my_event_str;
         public static event Action<string> my_event_str_one;
         public static event Action<string, UInt160> my_event;
         public static event Action<BigInteger> my_event_integer;
         public static event Action<UInt160> my_event_uint160;
+
+        // OpCode para converter dados para ByteString.
         [OpCode(OpCode.CONVERT, "0x28")]
         public static extern ByteString AsByteString(ByteString buffer);
 
-        public static bool Verify() => true;
-
-        public static void PrintStorage(string s){
+        // Método que imprime o valor armazenado no Storage, convertido para UInt160, associado à chave dada como parâmetro.
+        public static void PrintStorageUInt160(string s){
 
             ByteString storageResult = AsByteString(Storage.Get(Storage.CurrentContext, s));
             my_event_uint160((UInt160)storageResult);
 
         }
 
+        // Método que imprime o valor armazenado no Storage, como uma string, associado à chave dada como parâmetro.
         public static void PrintStorageString(string s){
 
             ByteString storageResult = AsByteString(Storage.Get(Storage.CurrentContext, s));
@@ -42,6 +44,7 @@ namespace CaraCoroaContract
 
         }
 
+        // Método para obter o jogador 1 do Storage e convertê-lo para UInt160.
         public static UInt160 GetPlayer1(){
 
             ByteString jogador1 = AsByteString(Storage.Get(Storage.CurrentContext, Jogador1Key));
@@ -49,6 +52,7 @@ namespace CaraCoroaContract
 
         }
 
+        // Método para obter o jogador 2 do Storage e convertê-lo para UInt160.
         public static UInt160 GetPlayer2(){
 
             ByteString jogador2 = AsByteString(Storage.Get(Storage.CurrentContext, Jogador2Key));
@@ -56,6 +60,7 @@ namespace CaraCoroaContract
 
         }
 
+        // Método para atribuir jogadores e juiz, inicializando o Storage com suas respectivas informações.
         public static bool AssignPlayers(UInt160 juiz, UInt160 jogador1, UInt160 jogador2){
             Inicializa();
             string strJuiz1 = (string)(ByteString)(byte[])juiz;
@@ -67,10 +72,12 @@ namespace CaraCoroaContract
             return true;
         }
 
+        // Método para inicializar o jogo e evitar problemas com valores nulos, definindo uma chave "jogo" no Storage com o valor "X".
         public static void Inicializa(){
             Storage.Put(Storage.CurrentContext, "jogo", "X");
         }
 
+        // Método para criar um novo jogo, armazenando a escolha (cara ou coroa) do jogador 1 no Storage.
         public static bool NovoJogo(string caraCoroa)
         {
             if (!(caraCoroa == "cara" || caraCoroa == "coroa"))
@@ -93,6 +100,7 @@ namespace CaraCoroaContract
             return true;
         }
 
+        // Método para realizar um sorteio e determinar o vencedor com base na escolha do jogador 1 e um número aleatório.
         public static bool Sorteio()
         {
             if (!Runtime.CheckWitness(GetPlayer2()))
@@ -115,7 +123,6 @@ namespace CaraCoroaContract
             else
                 my_event_str_one("Jogador 2 venceu!");
             Inicializa();
-            //Storage.Delete(Storage.CurrentContext, "jogo");
             return true;
         }
     }
