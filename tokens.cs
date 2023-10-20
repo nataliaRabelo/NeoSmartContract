@@ -108,7 +108,7 @@ namespace StakingTokenContract
             if (!Runtime.CheckWitness(account)){
                 my_event_str_one("No Authorization!");
             } 
-            ByteString currentStake = GetStakedAmount(account);
+            BigInteger currentStake = GetStakedAmount(account);
             // Verifica se o titular da conta tem saldo de stake suficiente.
             if (currentStake < amount){
                 my_event_str_one("Insufficient Staked Balance!");
