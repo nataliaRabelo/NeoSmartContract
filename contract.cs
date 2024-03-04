@@ -26,9 +26,18 @@ namespace PeerReview
         [OpCode(OpCode.CONVERT, "0x28")]
         public static extern ByteString AsByteString(ByteString buffer);
 
-      public static bool SubmitArticle(string article, UInt160 author)
+        public static bool SubmitArticle(string article, UInt160 author)
         {
             if (!Runtime.CheckWitness(author)) return false;
+            string strAuthor = (string)(ByteString)(byte[])author;
+            Storage.Put(Storage.CurrentContext, strAuthor, article);
+            return true;
+        }
+
+        public static bool ResubmitArticle(string article, UInt160 author)
+        {
+            if (!Runtime.CheckWitness(author)) return false;
+            if (DetermineArticleStatus(article) != R) return false;
             string strAuthor = (string)(ByteString)(byte[])author;
             Storage.Put(Storage.CurrentContext, strAuthor, article);
             return true;
@@ -78,7 +87,7 @@ namespace PeerReview
             return strInputReviewer == strReviewer1 || strInputReviewer == strReviewer2 || strInputReviewer == strReviewer3;
         }
 
-        public static void PrintArticleStatus(string article)
+        public static string DetermineArticleStatus(string article)
         {
             string reviews = GetReviews(article);
 
@@ -93,11 +102,26 @@ namespace PeerReview
                 else if (review == 'R') countR++;
             }
 
-            if (countY > countN && countY > countR) print("Aprovado");
-            else if (countN > countY && countN > countR) print("Reprovado");
-            else if (countR > countY && countR > countN) print("Resubmeter");
-            else if (countY == 1 && countN == 1 && countR == 1) print("Resubmeter");
-            else print("Indefinido, falta alguma das três revisões necessárias.");
+            if (countY > countN && countY > countR){
+                return Y;
+                print("Aprovado");
+            }
+            else if (countN > countY && countN > countR){
+                return N;
+                print("Reprovado");
+            }
+            else if (countR > countY && countR > countN){
+                return R;
+                print("Resubmeter");
+            } 
+            else if (countY == 1 && countN == 1 && countR == 1){
+                return R;
+                print("Resubmeter")
+            }
+            else{
+                return "I";
+                print("Indefinido, falta alguma das três revisões necessárias.");
+            } 
         }
 
         public static UInt160 GetReviewer(string s){
