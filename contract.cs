@@ -10,9 +10,9 @@ using System.Collections.Generic;
 
 namespace PeerReview
 {
-    [ManifestExtra("Author", "Natália Rabelo")]
+    [ManifestExtra("Author", "Natalia Rabelo")]
     [ManifestExtra("Email", "nataliabruno@id.uff.br")]
-    [ManifestExtra("Description", "Sistema de revisão de pares científicos")]
+    [ManifestExtra("Description", "Sistema de revisao de pares cientificos")]
     public class Contract1 : SmartContract
     {
         //Constantes 
@@ -104,23 +104,18 @@ namespace PeerReview
 
             if (countY > countN && countY > countR){
                 return Y;
-                print("Aprovado");
             }
             else if (countN > countY && countN > countR){
                 return N;
-                print("Reprovado");
             }
             else if (countR > countY && countR > countN){
                 return R;
-                print("Resubmeter");
             } 
             else if (countY == 1 && countN == 1 && countR == 1){
                 return R;
-                print("Resubmeter");
             }
             else{
                 return "I";
-                print("Indefinido, falta alguma das três revisões necessárias.");
             } 
         }
 
