@@ -116,7 +116,7 @@ namespace PeerReview
             } 
             else if (countY == 1 && countN == 1 && countR == 1){
                 return R;
-                print("Resubmeter")
+                print("Resubmeter");
             }
             else{
                 return "I";
